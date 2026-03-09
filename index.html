@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="StreamVault - Fast, secure, and user-friendly YouTube and Shorts audio downloader. Get high-quality MP3s instantly!">
+    <meta name="keywords" content="YouTube Downloader, Shorts Downloader, MP3 Converter, Free YT Downloader">
+    <title>StreamVault - Ultimate YouTube & Shorts Downloader</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#fef2f2',
+                            100: '#fee2e2',
+                            200: '#fecaca',
+                            300: '#fca5a5',
+                            400: '#f87171',
+                            500: '#ef4444',
+                            600: '#dc2626',
+                            700: '#b91c1c',
+                            800: '#991b1b',
+                            900: '#7f1d1d',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+
+<body
+    class="font-inter bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
+    <div id="loader"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-white dark:bg-slate-950 transition-opacity duration-500">
+        <div class="relative w-24 h-24">
+            <div class="absolute inset-0 border-4 border-primary-500/20 rounded-full"></div>
+            <div class="absolute inset-0 border-4 border-t-primary-600 rounded-full animate-spin"></div>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav
+        class="sticky top-0 z-40 w-full bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-2">
+                    <div
+                        class="w-10 h-10 bg-gradient-to-br from-primary-500 to-primary-700 rounded-xl flex items-center justify-center shadow-lg shadow-primary-500/20">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                    </div>
+                    <span
+                        class="text-xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-primary-600 to-primary-900 dark:from-primary-400 dark:to-primary-600">StreamVault</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button id="themeToggle"
+                        class="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-primary-600 dark:hover:text-primary-400 transition-all duration-200 active:scale-95">
+                        <svg id="sunIcon" class="hidden w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M16.071 16.071l.707.707M7.757 7.757l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+                        </svg>
+                        <svg id="moonIcon" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
+                    </button>
+                    <a href="#how-it-works"
+                        class="hidden sm:block text-sm font-medium hover:text-primary-500 transition-colors">How it
+                        Works</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <main class="relative pt-20 pb-16 overflow-hidden">
+        <div
+            class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-gradient-to-b from-primary-500/5 to-transparent pointer-events-none">
+        </div>
+        <div class="max-w-4xl mx-auto px-4 text-center relative">
+            <h1 class="text-4xl sm:text-6xl font-extrabold tracking-tight mb-6 animate-fade-in-up">
+                Convert YouTube to
+                <span class="text-primary-600 relative">High Quality MP3<span
+                        class="absolute -bottom-2 left-0 w-full h-1.5 bg-primary-200 dark:bg-primary-900/50 -z-10 rounded-full"></span></span>
+                instantly
+            </h1>
+            <p
+                class="text-lg text-slate-600 dark:text-slate-400 mb-10 max-w-2xl mx-auto animate-fade-in-up animation-delay-200">
+                Paste your YouTube link below to extract high-quality audio and MP3s instantly. Fast, free,
+                and no account needed.
+            </p>
+
+            <!-- URL Input Area -->
+            <div class="max-w-2xl mx-auto mb-16 animate-fade-in-up animation-delay-400">
+                <form id="fetchForm" class="relative group">
+                    <input type="url" id="videoUrl" placeholder="https://www.youtube.com/watch?v=..." required
+                        class="w-full h-16 pl-6 pr-40 bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-800 rounded-2xl text-lg shadow-xl shadow-slate-200/50 dark:shadow-none focus:border-primary-500 dark:focus:border-primary-500 focus:ring-0 transition-all outline-none">
+                    <button type="submit"
+                        class="absolute right-2 top-2 bottom-2 px-8 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-lg shadow-primary-600/30 transition-all active:scale-95 flex items-center gap-2 group">
+                        <span>Get Audio</span>
+                        <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none"
+                            stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                    </button>
+                    <div id="fetchLoader"
+                        class="hidden absolute right-2 top-2 bottom-2 px-8 bg-primary-600 text-white font-bold rounded-xl flex items-center justify-center">
+                        <svg class="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4">
+                            </circle>
+                            <path class="opacity-75" fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                            </path>
+                        </svg>
+                    </div>
+                </form>
+                <p id="errorMessage" class="hidden mt-3 text-red-500 font-medium text-sm text-left px-2"></p>
+            </div>
+
+            <!-- Video Preview Card (Initially Hidden) -->
+            <div id="videoCard"
+                class="hidden max-w-4xl mx-auto bg-white dark:bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 animate-scale-in">
+                <div class="flex flex-col md:flex-row h-full">
+                    <!-- Thumbnail Side -->
+                    <div class="md:w-2/5 relative">
+                        <img id="vidThumbnail" src="" alt="Thumbnail"
+                            class="h-full w-full object-cover aspect-video md:aspect-auto">
+                        <div class="absolute bottom-4 right-4 px-3 py-1 bg-black/70 backdrop-blur-md rounded-lg text-white text-sm font-bold"
+                            id="vidDuration">--:--</div>
+                        <div id="shortsBadge"
+                            class="hidden absolute top-4 left-4 px-3 py-1 bg-red-600 rounded-lg text-white text-xs font-bold uppercase tracking-widest shadow-lg">
+                            Shorts</div>
+                    </div>
+                    <!-- Details Side -->
+                    <div class="md:w-3/5 p-8 text-left flex flex-col justify-between">
+                        <div>
+                            <h2 id="vidTitle" class="text-2xl font-bold mb-3 line-clamp-2">--</h2>
+                            <div
+                                class="flex flex-wrap items-center gap-4 text-slate-500 dark:text-slate-400 text-sm mb-6">
+                                <span id="vidChannel"
+                                    class="flex items-center gap-1.5 font-semibold text-primary-600 dark:text-primary-400">
+                                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                        <path d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" />
+                                    </svg>
+                                    <span>--</span>
+                                </span>
+                                <span class="w-1.5 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full"></span>
+                                <span id="vidViews" class="flex items-center gap-1.5">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                    </svg>
+                                    <span>-- views</span>
+                                </span>
+                                <span class="w-1.5 h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full"></span>
+                                <span id="vidDate">--</span>
+                            </div>
+                        </div>
+
+                        <div class="space-y-4">
+                            <div class="flex items-center gap-4 mb-2">
+                                <h3 class="text-lg font-bold text-slate-800 dark:text-white">Download Options</h3>
+                            </div>
+
+                            <!-- Audio Options Only -->
+                            <div id="audioOptions" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <!-- Dynamic options injected here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Features Section -->
+    <section class="py-24 bg-white dark:bg-slate-900 border-y border-slate-200 dark:border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl font-extrabold mb-4">Why Choose StreamVault?</h2>
+                <p class="text-slate-600 dark:text-slate-400">The most powerful and user-friendly YouTube downloader
+                    ever made.</p>
+            </div>
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Feature 1 -->
+                <div
+                    class="p-8 rounded-3xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:shadow-xl transition-all group">
+                    <div
+                        class="w-14 h-14 bg-blue-500/10 text-blue-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Instant Processing</h3>
+                    <p class="text-slate-600 dark:text-slate-400">Our high-speed servers process your video links in
+                        seconds, no waiting around.</p>
+                </div>
+                <!-- Feature 2 -->
+                <div
+                    class="p-8 rounded-3xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:shadow-xl transition-all group">
+                    <div
+                        class="w-14 h-14 bg-primary-500/10 text-primary-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">True Original Audio</h3>
+                    <p class="text-slate-600 dark:text-slate-400">Extract audio in the best available bitrate, perfectly
+                        preserved for your high-end speakers or headphones.</p>
+                </div>
+                <!-- Feature 3 -->
+                <div
+                    class="p-8 rounded-3xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:shadow-xl transition-all group">
+                    <div
+                        class="w-14 h-14 bg-amber-500/10 text-amber-600 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-bold mb-3">Audio Extraction</h3>
+                    <p class="text-slate-600 dark:text-slate-400">Extract high-quality audio in MP3 format perfect for
+                        your music library.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section id="how-it-works" class="py-24">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl font-extrabold mb-4">How It Works</h2>
+                <p class="text-slate-600 dark:text-slate-400">Three simple steps to your favorite content.</p>
+            </div>
+            <div class="flex flex-col md:flex-row gap-12 items-center justify-center">
+                <div class="flex flex-col items-center text-center max-w-xs">
+                    <div
+                        class="w-16 h-16 rounded-full bg-primary-600 text-white flex items-center justify-center text-2xl font-bold mb-6 ring-8 ring-primary-500/20">
+                        1</div>
+                    <h4 class="text-xl font-bold mb-2">Paste Link</h4>
+                    <p class="text-slate-500">Copy the YouTube URL and paste it in the box above.</p>
+                </div>
+                <div class="hidden md:block w-32 h-0.5 bg-slate-200 dark:bg-slate-800 -mt-16"></div>
+                <div class="flex flex-col items-center text-center max-w-xs">
+                    <div
+                        class="w-16 h-16 rounded-full bg-primary-600 text-white flex items-center justify-center text-2xl font-bold mb-6 ring-8 ring-primary-500/20">
+                        2</div>
+                    <h4 class="text-xl font-bold mb-2">Fetch Details</h4>
+                    <p class="text-slate-500">Wait a few seconds while we grab all formats.</p>
+                </div>
+                <div class="hidden md:block w-32 h-0.5 bg-slate-200 dark:bg-slate-800 -mt-16"></div>
+                <div class="flex flex-col items-center text-center max-w-xs">
+                    <div
+                        class="w-16 h-16 rounded-full bg-primary-600 text-white flex items-center justify-center text-2xl font-bold mb-6 ring-8 ring-primary-500/20">
+                        3</div>
+                    <h4 class="text-xl font-bold mb-2">Download</h4>
+                    <p class="text-slate-500">Choose your quality and click download!</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="py-24 bg-slate-50 dark:bg-slate-900/50">
+        <div class="max-w-4xl mx-auto px-4">
+            <h2 class="text-3xl font-extrabold mb-12 text-center">Frequently Asked Questions</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Left Column -->
+                <div class="space-y-4">
+                    <!-- FAQ 1 -->
+                    <div
+                        class="faq-item bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 cursor-pointer group hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-300">
+                        <div class="flex justify-between items-center bg-transparent">
+                            <h4 class="text-lg font-bold flex items-center gap-3">
+                                <span
+                                    class="w-8 h-8 rounded-full bg-primary-500/10 text-primary-600 flex items-center justify-center text-xs">01</span>
+                                Is this downloader free?
+                            </h4>
+                            <div
+                                class="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 dark:bg-slate-700 group-hover:bg-primary-500/10 transition-colors">
+                                <svg class="w-4 h-4 text-slate-500 group-hover:text-primary-500 transition-transform duration-300"
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                        d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="faq-answer text-slate-500 dark:text-slate-400 leading-relaxed text-sm">
+                            Yes! StreamVault is 100% free to use. We don't require any subscription or registration.
+                            Enjoy unlimited high-quality downloads without any hidden costs.
+                        </div>
+                    </div>
+                    <!-- FAQ 2 -->
+                    <div
+                        class="faq-item bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 cursor-pointer group hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-300">
+                        <div class="flex justify-between items-center bg-transparent">
+                            <h4 class="text-lg font-bold flex items-center gap-3">
+                                <span
+                                    class="w-8 h-8 rounded-full bg-blue-500/10 text-blue-600 flex items-center justify-center text-xs">02</span>
+                                Can I download Shorts?
+                            </h4>
+                            <div
+                                class="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 dark:bg-slate-700 group-hover:bg-primary-500/10 transition-colors">
+                                <svg class="w-4 h-4 text-slate-500 group-hover:text-primary-500 transition-transform duration-300"
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                        d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="faq-answer text-slate-500 dark:text-slate-400 leading-relaxed text-sm">
+                            Absolutely! StreamVault is optimized for YouTube Shorts. Simply paste the link, and it'll
+                            fetch the highest quality available instantly.
+                        </div>
+                    </div>
+                    <!-- FAQ 3 -->
+                    <div
+                        class="faq-item bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 cursor-pointer group hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-300">
+                        <div class="flex justify-between items-center bg-transparent">
+                            <h4 class="text-lg font-bold flex items-center gap-3">
+                                <span
+                                    class="w-8 h-8 rounded-full bg-amber-500/10 text-amber-600 flex items-center justify-center text-xs">03</span>
+                                How about the quality?
+                            </h4>
+                            <div
+                                class="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 dark:bg-slate-700 group-hover:bg-primary-500/10 transition-colors">
+                                <svg class="w-4 h-4 text-slate-500 group-hover:text-primary-500 transition-transform duration-300"
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                        d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="faq-answer text-slate-500 dark:text-slate-400 leading-relaxed text-sm">
+                            We pull the raw, original audio stream directly from Google's servers. You'll get the best
+                            available quality (up to 320kbps MP3) per video.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right Column -->
+                <div class="space-y-4">
+                    <!-- FAQ 4 -->
+                    <div
+                        class="faq-item bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 cursor-pointer group hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-300">
+                        <div class="flex justify-between items-center bg-transparent">
+                            <h4 class="text-lg font-bold flex items-center gap-3">
+                                <span
+                                    class="w-8 h-8 rounded-full bg-green-500/10 text-green-600 flex items-center justify-center text-xs">04</span>
+                                Is it legal to use?
+                            </h4>
+                            <div
+                                class="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 dark:bg-slate-700 group-hover:bg-primary-500/10 transition-colors">
+                                <svg class="w-4 h-4 text-slate-500 group-hover:text-primary-500 transition-transform duration-300"
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                        d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="faq-answer text-slate-500 dark:text-slate-400 leading-relaxed text-sm">
+                            Our tool is designed for downloading royalty-free, creative commons, and legally accessible
+                            personal content. Please respect copyright laws and terms of service.
+                        </div>
+                    </div>
+                    <!-- FAQ 5 -->
+                    <div
+                        class="faq-item bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 cursor-pointer group hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-300">
+                        <div class="flex justify-between items-center bg-transparent">
+                            <h4 class="text-lg font-bold flex items-center gap-3">
+                                <span
+                                    class="w-8 h-8 rounded-full bg-purple-500/10 text-purple-600 flex items-center justify-center text-xs">05</span>
+                                Where are files saved?
+                            </h4>
+                            <div
+                                class="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 dark:bg-slate-700 group-hover:bg-primary-500/10 transition-colors">
+                                <svg class="w-4 h-4 text-slate-500 group-hover:text-primary-500 transition-transform duration-300"
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                        d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="faq-answer text-slate-500 dark:text-slate-400 leading-relaxed text-sm">
+                            Files are saved directly to your browser's default download folder. On mobile, look in your
+                            browser's "Downloads" or "Files" app.
+                        </div>
+                    </div>
+                    <!-- FAQ 6 -->
+                    <div
+                        class="faq-item bg-white dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 cursor-pointer group hover:bg-slate-50 dark:hover:bg-slate-800 transition-all duration-300">
+                        <div class="flex justify-between items-center bg-transparent">
+                            <h4 class="text-lg font-bold flex items-center gap-3">
+                                <span
+                                    class="w-8 h-8 rounded-full bg-indigo-500/10 text-indigo-600 flex items-center justify-center text-xs">06</span>
+                                Does it support MP3?
+                            </h4>
+                            <div
+                                class="w-8 h-8 rounded-full flex items-center justify-center bg-slate-100 dark:bg-slate-700 group-hover:bg-primary-500/10 transition-colors">
+                                <svg class="w-4 h-4 text-slate-500 group-hover:text-primary-500 transition-transform duration-300"
+                                    fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                                        d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="faq-answer text-slate-500 dark:text-slate-400 leading-relaxed text-sm">
+                            Yes! If our server has FFmpeg installed, we automatically convert the audio streams to
+                            high-bitrate MP3 format for maximum compatibility.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="py-12 border-t border-slate-200 dark:border-slate-800">
+        <div class="max-w-7xl mx-auto px-4 text-center">
+            <div class="flex items-center justify-center gap-2 mb-8">
+                <div class="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center shadow-lg">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                </div>
+                <span class="text-xl font-bold tracking-tight">StreamVault</span>
+            </div>
+            <div class="flex flex-wrap justify-center gap-8 mb-8 text-sm font-medium text-slate-500">
+                <a href="#" class="hover:text-primary-500 transition-colors">Privacy Policy</a>
+                <a href="#" class="hover:text-primary-500 transition-colors">Terms of Service</a>
+                <a href="#" class="hover:text-primary-500 transition-colors">Contact</a>
+            </div>
+            <p class="text-slate-400 text-sm">Copyright &copy; 2026 Made by <span
+                    class="text-primary-600 font-bold">Harsh Patel</span></p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
