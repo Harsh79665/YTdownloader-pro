@@ -1,6 +1,6 @@
-# 🎵 StreamVault - Premium YouTube Audio & MP3 Converter
+# MediaSnap - YouTube Audio & Video Downloader
 
-StreamVault is a modern, high-performance web application designed for extracting high-quality audio and MP3s directly from YouTube videos and Shorts. It features a sleek, responsive UI with dark mode support and efficient media processing using `yt-dlp` and `FFmpeg`. Download audio seamlessly to your device without taking up permanent server storage.
+MediaSnap is a modern, high-performance web application designed for extracting high-quality audio and MP3s directly from YouTube videos and Shorts. It features a sleek, responsive UI with dark mode support and efficient media processing using `yt-dlp` and `FFmpeg`. Download audio seamlessly to your device without taking up permanent server storage.
 
 ---
 
@@ -67,7 +67,7 @@ Open your browser and navigate to:
 1. **Paste Link**: Copy a favorite YouTube video or Shorts URL.
 2. **Fetch Audio Data**: Paste the link into the input field and click **"Get Audio"**.
 3. **Choose Quality**: Select your preferred available audio quality and format (e.g., best quality MP3/M4A).
-4. **Download**: Click the button—StreamVault rapidly processes it and drops the file directly into your device!
+4. **Download**: Click the button—MediaSnap rapidly processes it and drops the file directly into your device!
 
 ---
 

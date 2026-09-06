@@ -1,5 +1,5 @@
 /**
- * StreamVault Pro - Production Client Script
+ * MediaSnap - Production Client Script
  * Features: True Liquid Hover Reactions, 0-100% Music Download Visualizer,
  * Soundwave Equalizer, Clipboard Integration, Skeleton Placeholders, and System Themes
  */
