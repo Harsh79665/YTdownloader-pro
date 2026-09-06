@@ -1,4 +1,5 @@
 import os
+import base64
 import re
 import logging
 import shutil
@@ -147,6 +148,18 @@ def _build_ydl_base_opts(
     if ffmpeg_exe:
         opts['ffmpeg_location'] = ffmpeg_exe
 
+    # Optional server-side cookies can be supplied as a Vercel secret without
+    # committing an account cookie file to the repository.
+    cookies_b64 = os.environ.get('YOUTUBE_COOKIES_B64', '').strip()
+    if cookies_b64:
+        try:
+            cookie_path = os.path.join(tempfile.gettempdir(), 'mediasnap-youtube-cookies.txt')
+            with open(cookie_path, 'wb') as cookie_file:
+                cookie_file.write(base64.b64decode(cookies_b64, validate=True))
+            opts['cookiefile'] = cookie_path
+        except (ValueError, OSError) as cookie_error:
+            logger.warning(f"Ignoring invalid YOUTUBE_COOKIES_B64 secret: {cookie_error}")
+
     return opts
 
 
@@ -185,6 +198,7 @@ def health_check():
         'status': 'ok',
         'service': 'MediaSnap',
         'yt_dlp': yt_dlp.version.__version__,
+        'cookies_configured': bool(os.environ.get('YOUTUBE_COOKIES_B64')),
     })
 
 
@@ -397,9 +411,8 @@ def process_media_download(url: str, format_id: str, media_type: str) -> tuple[s
             err_str = str(e).lower()
             logger.warning(f"Download attempt {attempt+1} failed: {e}")
 
-            # If explicitly a bot/sign-in block, no point retrying
-            if "sign in" in err_str and "bot" in err_str:
-                break
+            # Cloud IP bot checks can differ between player clients; always
+            # continue through the complete fallback profile list.
             continue
 
     # ── Human-readable error messages ─────────────────────────────────────────
