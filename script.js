@@ -535,19 +535,34 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 220);
 
-        // Concurrently execute actual backend download
+        // Concurrently execute actual backend download via streaming endpoint
         try {
-            const response = await fetch('/api/download', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url, format_id, media_type })
-            });
-
-            const data = await response.json();
+            const streamUrl = `/api/stream-download?url=${encodeURIComponent(url)}&format_id=${encodeURIComponent(format_id)}&media_type=${encodeURIComponent(media_type)}`;
+            const response = await fetch(streamUrl);
             if (activeDownloadAbort) return;
 
-            if (!response.ok || data.error) {
-                throw new Error(data.error || 'Server error occurred during download.');
+            if (!response.ok) {
+                let errorMsg = 'Download failed.';
+                try {
+                    const errData = await response.json();
+                    errorMsg = errData.error || errorMsg;
+                } catch (_) {}
+                throw new Error(errorMsg);
+            }
+
+            const blob = await response.blob();
+            if (activeDownloadAbort) return;
+
+            // Extract filename from Content-Disposition header if available
+            let filename = currentVideoTitle 
+                ? `${currentVideoTitle.replace(/[\\/:*?"<>|]/g, '_')}.${media_type === 'audio' ? 'mp3' : 'mp4'}`
+                : `media_download.${media_type === 'audio' ? 'mp3' : 'mp4'}`;
+            const disposition = response.headers.get('Content-Disposition');
+            if (disposition && disposition.includes('filename=')) {
+                const match = disposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+                if (match && match[1]) {
+                    filename = match[1].replace(/['"]/g, '').trim();
+                }
             }
 
             // Rapidly finish from currentPercent to 100%
@@ -555,7 +570,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let finishStep = currentPercent;
             const finishInterval = setInterval(() => {
-                finishStep += 3;
+                finishStep += 4;
                 if (finishStep >= 100) {
                     finishStep = 100;
                     clearInterval(finishInterval);
@@ -567,16 +582,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     setPhaseActive(phase3, false, true);
                     setPhaseActive(phase4, false, true);
 
-                    if (musicProgressStatus) musicProgressStatus.textContent = 'Download Ready! Starting File Transfer...';
+                    if (musicProgressStatus) musicProgressStatus.textContent = 'Download Ready! Transferring file...';
 
-                    // Trigger browser file download via direct stream URL or file route
-                    const downloadUrl = data.download_url || `/api/download-file/${encodeURIComponent(data.filename)}`;
+                    // Trigger browser file download via Blob URL
+                    const blobUrl = URL.createObjectURL(blob);
                     const link = document.createElement('a');
-                    link.href = downloadUrl;
-                    link.download = data.filename;
+                    link.href = blobUrl;
+                    link.download = filename;
                     document.body.appendChild(link);
                     link.click();
                     document.body.removeChild(link);
+                    setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
 
                     // Auto-hide modal after celebration
                     setTimeout(() => {
@@ -587,7 +603,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else {
                     updateProgressVisuals(finishStep);
                 }
-            }, 30);
+            }, 25);
 
         } catch (err) {
             if (progressTimer) clearInterval(progressTimer);
