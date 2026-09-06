@@ -274,16 +274,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         try {
-            const response = await fetch('/api/info', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url })
-            });
+            const videoId = getYouTubeVideoId(url);
+            if (!videoId) {
+                throw new Error('Please enter a valid YouTube video or Shorts URL.');
+            }
 
+            const metadataUrl = `https://noembed.com/embed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}`;
+            const response = await fetch(metadataUrl);
             const data = await response.json();
             if (!response.ok || data.error) {
-                throw new Error(data.error || 'Failed to fetch video stream. Please check the link.');
+                throw new Error('This YouTube video could not be previewed. Check that it is public.');
             }
+
+            const frontendFormats = createFrontendFormats();
 
             // Populate Metadata
             currentVideoTitle = data.title || 'YouTube Media';
@@ -302,8 +305,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
 
-            currentFormats = Array.isArray(data.formats) ? data.formats : [];
-            currentOriginalUrl = data.original_url || url;
+            currentFormats = frontendFormats;
+            currentOriginalUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
             renderFormats(currentFormats, currentOriginalUrl);
 
@@ -333,6 +336,28 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!errorMessage) return;
         errorMessage.textContent = '';
         errorMessage.classList.add('hidden');
+    }
+
+    function getYouTubeVideoId(url) {
+        try {
+            const parsedUrl = new URL(url);
+            if (!['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be', 'youtube-nocookie.com'].includes(parsedUrl.hostname)) {
+                return null;
+            }
+            if (parsedUrl.hostname === 'youtu.be') return parsedUrl.pathname.slice(1, 12);
+            if (parsedUrl.pathname.startsWith('/shorts/')) return parsedUrl.pathname.split('/')[2]?.slice(0, 11) || null;
+            if (parsedUrl.pathname.startsWith('/embed/')) return parsedUrl.pathname.split('/')[2]?.slice(0, 11) || null;
+            return parsedUrl.searchParams.get('v')?.slice(0, 11) || null;
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function createFrontendFormats() {
+        return [
+            { format_id: 'source-audio', extension: 'mp3', resolution: 'Audio', filesize: 'Open source video', type: 'audio', note: 'Browser preview', has_audio: true },
+            { format_id: 'source-video', extension: 'mp4', resolution: 'Video', filesize: 'Open source video', type: 'video', note: 'Browser preview', has_audio: true }
+        ];
     }
 
     function formatUploadDate(dateStr) {
@@ -393,7 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
         div.className = 'quality-btn group';
 
         const isVideo = (format.type || 'audio') === 'video';
-        const typeLabel = isVideo ? 'MP4 Video' : 'MP3 Audio';
+        const typeLabel = isVideo ? 'Open Video' : 'Open Audio';
         const qualityLabel = format.resolution && format.resolution !== 'Audio' ? format.resolution : (format.note || 'Standard');
         const label = `${typeLabel} - ${qualityLabel}`;
         const pillBadgeColor = isVideo 
@@ -475,13 +500,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    async function triggerVisualDownload(url, format_id, media_type, label) {
+    function triggerVisualDownload(url, format_id, media_type, label) {
+        const sourceUrl = getYouTubeVideoId(url)
+            ? `https://www.youtube.com/watch?v=${getYouTubeVideoId(url)}`
+            : url;
+        window.open(sourceUrl, '_blank', 'noopener,noreferrer');
+        showUserError('MediaSnap frontend-only mode opens the original YouTube source. MP3/MP4 conversion requires a server-side downloader and is not available without a backend.');
+        return;
+
+        /*
         if (!musicDownloadModal) return;
 
         activeDownloadAbort = false;
         if (progressTimer) clearInterval(progressTimer);
 
-        // Show Modal
         musicDownloadModal.classList.remove('hidden');
         resetPhases();
 
@@ -537,7 +569,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Concurrently execute actual backend download via streaming endpoint
         try {
-            const streamUrl = `/api/stream-download?url=${encodeURIComponent(url)}&format_id=${encodeURIComponent(format_id)}&media_type=${encodeURIComponent(media_type)}`;
+            const streamUrl = sourceUrl;
             const response = await fetch(streamUrl);
             if (activeDownloadAbort) return;
 
@@ -616,6 +648,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 musicDownloadModal.classList.add('hidden');
             }, 3000);
         }
+    }
+
+        */
     }
 
     function updateProgressVisuals(percent) {
