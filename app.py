@@ -181,7 +181,11 @@ def index():
 
 @app.route('/api/health')
 def health_check():
-    return jsonify({'status': 'ok', 'service': 'MediaSnap'})
+    return jsonify({
+        'status': 'ok',
+        'service': 'MediaSnap',
+        'yt_dlp': yt_dlp.version.__version__,
+    })
 
 
 @app.route('/api/info', methods=['POST'])
@@ -341,7 +345,7 @@ def process_media_download(url: str, format_id: str, media_type: str) -> tuple[s
     # ── Retry loop with fresh User-Agent each attempt ─────────────────────────
     last_err: Exception | None = None
 
-    client_profiles: list[str | None] = [None, 'web_safari', 'android_vr']
+    client_profiles: list[str | None] = [None, 'tv_embedded', 'android_vr', 'android', 'mweb']
     for attempt, player_client in enumerate(client_profiles):
         # Small randomised delay to look more human
         if attempt > 0:
@@ -414,7 +418,7 @@ def process_media_download(url: str, format_id: str, media_type: str) -> tuple[s
     if "video unavailable" in err_str or "private" in err_str:
         raise RuntimeError("This video is private or unavailable. Please check the URL.")
 
-    raise RuntimeError(f"Download failed after {3} attempts: {last_err}")
+    raise RuntimeError(f"Download failed after {len(client_profiles)} extraction profiles: {last_err}")
 
 
 @app.route('/api/stream-download', methods=['GET'])

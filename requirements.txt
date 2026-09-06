@@ -1,5 +1,6 @@
 flask
 flask-cors
-yt-dlp[default]>=2026.8.19
+yt-dlp[default]==2026.8.19
+yt-dlp-ejs==0.8.0
 imageio-ffmpeg
 gunicorn
