@@ -33,11 +33,11 @@ def get_ffmpeg_path() -> str | None:
         logger.warning(f"Could not load imageio_ffmpeg: {e}")
     return None
 
-def get_video_info(url: str) -> dict[str, Any] | None:
+def get_video_info(url: str) -> tuple[dict[str, Any] | None, str]:
     """Extracts metadata and formats with multi-client fallback for 100% reliability."""
     clients_to_try = [['android'], ['android_vr'], ['ios'], []]
     ffmpeg_exe = get_ffmpeg_path()
-    last_error = None
+    last_error = "Unknown error"
 
     for client in clients_to_try:
         ydl_opts: dict[str, Any] = {
@@ -55,14 +55,14 @@ def get_video_info(url: str) -> dict[str, Any] | None:
             with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
                 info = ydl.extract_info(url, download=False)
                 if info:
-                    return cast(dict[str, Any], info)
+                    return cast(dict[str, Any], info), ""
         except Exception as e:
-            last_error = e
+            last_error = str(e)
             logger.warning(f"Client {client} failed for {url}: {e}")
             continue
 
     logger.error(f"All extraction clients failed for {url}: {last_error}")
-    return None
+    return None, last_error
 
 @app.route('/')
 def index():
@@ -83,9 +83,9 @@ def video_info():
     if not url:
         return jsonify({'error': 'URL is required'}), 400
 
-    info = get_video_info(url)
+    info, error_msg = get_video_info(url)
     if info is None:
-        return jsonify({'error': 'Could not extract video information. Please ensure the link is a valid public YouTube or Shorts URL.'}), 400
+        return jsonify({'error': f'Could not extract video info: {error_msg}'}), 400
 
     duration_value = info.get('duration', 0)
     duration_seconds = int(duration_value) if isinstance(duration_value, (int, float)) else 0
