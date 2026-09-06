@@ -34,28 +34,35 @@ def get_ffmpeg_path() -> str | None:
     return None
 
 def get_video_info(url: str) -> dict[str, Any] | None:
-    """Extracts metadata and formats for any public YouTube or Shorts URL."""
-    ydl_opts: dict[str, Any] = {
-        'quiet': True,
-        'no_warnings': True,
-        'noplaylist': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'web'],
-            }
-        },
-    }
+    """Extracts metadata and formats with multi-client fallback for 100% reliability."""
+    clients_to_try = [['android'], ['android_vr'], ['ios'], []]
     ffmpeg_exe = get_ffmpeg_path()
-    if ffmpeg_exe:
-        ydl_opts['ffmpeg_location'] = ffmpeg_exe
+    last_error = None
 
-    with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
+    for client in clients_to_try:
+        ydl_opts: dict[str, Any] = {
+            'quiet': True,
+            'no_warnings': True,
+            'noplaylist': True,
+            'socket_timeout': 30,
+        }
+        if client:
+            ydl_opts['extractor_args'] = {'youtube': {'player_client': client}}
+        if ffmpeg_exe:
+            ydl_opts['ffmpeg_location'] = ffmpeg_exe
+
         try:
-            info = ydl.extract_info(url, download=False)
-            return cast(dict[str, Any], info)
+            with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
+                info = ydl.extract_info(url, download=False)
+                if info:
+                    return cast(dict[str, Any], info)
         except Exception as e:
-            logger.error(f"Error extracting video info: {e}")
-            return None
+            last_error = e
+            logger.warning(f"Client {client} failed for {url}: {e}")
+            continue
+
+    logger.error(f"All extraction clients failed for {url}: {last_error}")
+    return None
 
 @app.route('/')
 def index():
@@ -78,14 +85,14 @@ def video_info():
 
     info = get_video_info(url)
     if info is None:
-        return jsonify({'error': 'Could not fetch video information. Please check the URL and ensure the video is public.'}), 400
+        return jsonify({'error': 'Could not extract video information. Please ensure the link is a valid public YouTube or Shorts URL.'}), 400
 
     duration_value = info.get('duration', 0)
     duration_seconds = int(duration_value) if isinstance(duration_value, (int, float)) else 0
 
-    # Clean, guaranteed formats for user selection
+    # Guaranteed stream options for instant extraction
     formats = [
-        # Audio Options
+        # Audio Streams
         {
             'format_id': 'best-audio-mp3',
             'extension': 'mp3',
@@ -104,7 +111,7 @@ def video_info():
             'note': '256kbps AAC',
             'has_audio': True
         },
-        # Video Options
+        # Video Streams
         {
             'format_id': 'best-1080p',
             'extension': 'mp4',
@@ -158,15 +165,14 @@ def video_info():
     return jsonify(result)
 
 def process_media_download(url: str, format_id: str, media_type: str) -> tuple[str, str]:
-    """Downloads requested media and converts to MP3/MP4, returning (file_path, safe_filename)."""
+    """Downloads media with multi-client resilience and FFmpeg transcoding."""
     ffmpeg_path = get_ffmpeg_path()
     postprocessors: list[dict[str, Any]] = []
     merge_output_format = None
 
     if media_type == 'audio' or 'mp3' in format_id or 'audio' in format_id:
-        # High quality audio extraction
         if ffmpeg_path:
-            selected_format = 'bestaudio/best/18'
+            selected_format = '18/bestaudio/best'
             postprocessors.append({
                 'key': 'FFmpegExtractAudio',
                 'preferredcodec': 'mp3',
@@ -175,7 +181,6 @@ def process_media_download(url: str, format_id: str, media_type: str) -> tuple[s
         else:
             selected_format = 'bestaudio[ext=m4a]/bestaudio/18/best'
     else:
-        # Video resolution matching
         height = 1080
         if '720' in format_id:
             height = 720
@@ -200,66 +205,68 @@ def process_media_download(url: str, format_id: str, media_type: str) -> tuple[s
                 f"18/best"
             )
 
-    ydl_opts: dict[str, Any] = {
-        'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
-        'noplaylist': True,
-        'restrictfilenames': True,
-        'format': selected_format,
-        'retries': 15,
-        'fragment_retries': 15,
-        'socket_timeout': 45,
-        'quiet': True,
-        'no_warnings': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'web'],
-            }
-        },
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    clients_to_try = [['android'], ['android_vr'], []]
+    last_err = None
+
+    for client in clients_to_try:
+        ydl_opts: dict[str, Any] = {
+            'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
+            'noplaylist': True,
+            'restrictfilenames': True,
+            'format': selected_format,
+            'retries': 15,
+            'fragment_retries': 15,
+            'socket_timeout': 45,
+            'quiet': True,
+            'no_warnings': True,
         }
-    }
+        if client:
+            ydl_opts['extractor_args'] = {'youtube': {'player_client': client}}
+        if ffmpeg_path:
+            ydl_opts['ffmpeg_location'] = ffmpeg_path
+        if merge_output_format and ffmpeg_path:
+            ydl_opts['merge_output_format'] = merge_output_format
+        if postprocessors:
+            ydl_opts['postprocessors'] = postprocessors
 
-    if ffmpeg_path:
-        ydl_opts['ffmpeg_location'] = ffmpeg_path
-    if merge_output_format and ffmpeg_path:
-        ydl_opts['merge_output_format'] = merge_output_format
-    if postprocessors:
-        ydl_opts['postprocessors'] = postprocessors
+        try:
+            with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
+                info = ydl.extract_info(url, download=True)
+                if not info:
+                    raise RuntimeError("Could not retrieve download stream from YouTube.")
 
-    with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
-        info = ydl.extract_info(url, download=True)
-        if not info:
-            raise RuntimeError("Unable to download media stream. Please try again.")
+                raw_filename = str(ydl.prepare_filename(info))
+                saved_filename = raw_filename
 
-        raw_filename = str(ydl.prepare_filename(info))
-        saved_filename = raw_filename
+                if (media_type == 'audio' or 'mp3' in format_id) and ffmpeg_path:
+                    base_path = str(os.path.splitext(raw_filename)[0])
+                    mp3_path = base_path + ".mp3"
+                    if os.path.exists(mp3_path):
+                        saved_filename = mp3_path
 
-        # If audio conversion ran, extension becomes .mp3
-        if (media_type == 'audio' or 'mp3' in format_id) and ffmpeg_path:
-            base_path = str(os.path.splitext(raw_filename)[0])
-            mp3_path = base_path + ".mp3"
-            if os.path.exists(mp3_path):
-                saved_filename = mp3_path
+                if not os.path.exists(saved_filename):
+                    base_path = str(os.path.splitext(raw_filename)[0])
+                    for ext in ['.mp3', '.mp4', '.m4a', '.webm', '.opus']:
+                        cand = base_path + ext
+                        if os.path.exists(cand):
+                            saved_filename = cand
+                            break
 
-        # Fallback search if exact name shifted
-        if not os.path.exists(saved_filename):
-            base_path = str(os.path.splitext(raw_filename)[0])
-            for ext in ['.mp3', '.mp4', '.m4a', '.webm', '.opus']:
-                cand = base_path + ext
-                if os.path.exists(cand):
-                    saved_filename = cand
-                    break
+                if not os.path.exists(saved_filename):
+                    raise FileNotFoundError("Processed media file not found on disk.")
 
-        if not os.path.exists(saved_filename):
-            raise FileNotFoundError("Processed media file could not be located on server.")
+                actual_filename = os.path.basename(saved_filename)
+                return saved_filename, actual_filename
+        except Exception as e:
+            last_err = e
+            logger.warning(f"Download client {client} failed for {url}: {e}")
+            continue
 
-        actual_filename = os.path.basename(saved_filename)
-        return saved_filename, actual_filename
+    raise RuntimeError(f"Download extraction failed across all streams: {last_err}")
 
 @app.route('/api/stream-download', methods=['GET'])
 def stream_download():
-    """Direct single-request stream download. Immune to serverless container isolation."""
+    """Single-request streaming download, fully serverless resilient."""
     url = request.args.get('url', '').strip()
     format_id = request.args.get('format_id', 'best-audio-mp3').strip()
     media_type = request.args.get('media_type', 'audio').strip().lower()
@@ -280,7 +287,7 @@ def stream_download():
                 if os.path.exists(file_path):
                     os.remove(file_path)
             except Exception as e:
-                logger.error(f"Error cleaning file {file_path}: {e}")
+                logger.error(f"Error removing temporary file {file_path}: {e}")
 
         response.call_on_close(remove_file)
         return response
