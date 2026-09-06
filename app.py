@@ -1,8 +1,10 @@
 import os
-import json
 import logging
 import shutil
-from flask import Flask, request, jsonify, send_from_directory
+import time
+import tempfile
+from typing import Any, cast
+from flask import Flask, request, jsonify, send_file, send_from_directory, Response
 from flask_cors import CORS
 import yt_dlp
 
@@ -13,20 +15,44 @@ CORS(app)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-DOWNLOAD_FOLDER = 'downloads'
+DOWNLOAD_FOLDER = os.path.join(tempfile.gettempdir(), 'streamvault_downloads')
 if not os.path.exists(DOWNLOAD_FOLDER):
-    os.makedirs(DOWNLOAD_FOLDER)
+    os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
-def get_video_info(url):
-    ydl_opts = {
+def get_ffmpeg_path() -> str | None:
+    """Finds FFmpeg on system PATH or dynamically loads bundled imageio-ffmpeg."""
+    path = shutil.which("ffmpeg")
+    if path:
+        return path
+    try:
+        import imageio_ffmpeg
+        exe = imageio_ffmpeg.get_ffmpeg_exe()
+        if exe and os.path.exists(exe):
+            return str(exe)
+    except Exception as e:
+        logger.warning(f"Could not load imageio_ffmpeg: {e}")
+    return None
+
+def get_video_info(url: str) -> dict[str, Any] | None:
+    """Extracts metadata and formats for any public YouTube or Shorts URL."""
+    ydl_opts: dict[str, Any] = {
         'quiet': True,
         'no_warnings': True,
-        'format': 'best',
+        'noplaylist': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web'],
+            }
+        },
     }
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    ffmpeg_exe = get_ffmpeg_path()
+    if ffmpeg_exe:
+        ydl_opts['ffmpeg_location'] = ffmpeg_exe
+
+    with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
         try:
             info = ydl.extract_info(url, download=False)
-            return info
+            return cast(dict[str, Any], info)
         except Exception as e:
             logger.error(f"Error extracting video info: {e}")
             return None
@@ -41,202 +67,259 @@ def index():
 def video_info():
     if not request.is_json:
         return jsonify({'error': 'Request must be JSON'}), 400
-    data = request.get_json(silent=True)
+    data = cast(dict[str, Any] | None, request.get_json(silent=True))
     if not data:
         return jsonify({'error': 'Invalid JSON data'}), 400
     
-    url = data.get('url')
+    url_raw = data.get('url')
+    url = str(url_raw).strip() if url_raw is not None else ''
     if not url:
         return jsonify({'error': 'URL is required'}), 400
 
     info = get_video_info(url)
     if info is None:
-        return jsonify({'error': 'Could not fetch video information. Please check the URL.'}), 400
+        return jsonify({'error': 'Could not fetch video information. Please check the URL and ensure the video is public.'}), 400
 
-    # Extract relevant details
-    formats = []
-    seen_resolutions = set()
-    
-    # Check for FFmpeg presence
-    ffmpeg_active = shutil.which("ffmpeg") is not None
+    duration_value = info.get('duration', 0)
+    duration_seconds = int(duration_value) if isinstance(duration_value, (int, float)) else 0
 
-    # Separate collection to handle DASH vs Combined more smartly
-    final_video_list = []
-    final_audio_list = []
-    
-    # Track which resolutions we've already added to avoid duplicates
-    resolutions_seen = set()
-    
-    formats_data = info.get('formats', []) if info else []
-    
-    unique_audio = []
-    aud_seen = set()
-    
-    # Sort formats by size recursively to get best raw size
-    def get_size(fmt):
-        return fmt.get('filesize') or fmt.get('filesize_approx') or 0
-        
-    sorted_formats = sorted(formats_data, key=get_size, reverse=True)
-
-    for f in sorted_formats:
-        v_c = str(f.get('vcodec', 'none'))
-        a_c = str(f.get('acodec', 'none'))
-        is_v = v_c != 'none'
-        is_a = a_c != 'none'
-        
-        # We only care about audio formats for StreamVault
-        if is_v or not is_a:
-            continue
-            
-        sz_v = get_size(f)
-        sz_str = "Unknown"
-        if sz_v > 0:
-            sz_mb = sz_v / (1024 * 1024)
-            sz_str = f"{sz_mb:.2f} MB"
-
-        f_obj = {
-            'format_id': str(f.get('format_id')),
-            'extension': str(f.get('ext', 'unknown')),
-            'resolution': 'Audio',
-            'filesize': sz_str,
+    # Clean, guaranteed formats for user selection
+    formats = [
+        # Audio Options
+        {
+            'format_id': 'best-audio-mp3',
+            'extension': 'mp3',
+            'resolution': 'Audio (320kbps)',
+            'filesize': 'Studio Master',
             'type': 'audio',
-            'note': str(f.get('format_note', 'Standard')),
-            'has_audio': True,
-            'needs_ffmpeg': False,
-            'raw_size': sz_v,
-            'displayRes': 'Audio'
+            'note': '320kbps MP3',
+            'has_audio': True
+        },
+        {
+            'format_id': 'best-audio-m4a',
+            'extension': 'm4a',
+            'resolution': 'Audio (AAC)',
+            'filesize': 'Lossless Stream',
+            'type': 'audio',
+            'note': '256kbps AAC',
+            'has_audio': True
+        },
+        # Video Options
+        {
+            'format_id': 'best-1080p',
+            'extension': 'mp4',
+            'resolution': '1080p',
+            'filesize': 'Full HD',
+            'type': 'video',
+            'note': '1080p 60fps',
+            'has_audio': True
+        },
+        {
+            'format_id': 'best-720p',
+            'extension': 'mp4',
+            'resolution': '720p',
+            'filesize': 'HD Quality',
+            'type': 'video',
+            'note': '720p HD',
+            'has_audio': True
+        },
+        {
+            'format_id': 'best-480p',
+            'extension': 'mp4',
+            'resolution': '480p',
+            'filesize': 'Standard',
+            'type': 'video',
+            'note': '480p SD',
+            'has_audio': True
+        },
+        {
+            'format_id': 'best-360p',
+            'extension': 'mp4',
+            'resolution': '360p',
+            'filesize': 'Fast Mobile',
+            'type': 'video',
+            'note': '360p Mobile',
+            'has_audio': True
         }
-        
-        a_key = f"{f_obj['extension']}_{f_obj['filesize']}"
-        if a_key not in aud_seen:
-            aud_seen.add(a_key)
-            unique_audio.append(f_obj)
-            
-        if len(unique_audio) >= 12:
-            break
+    ]
 
-    formats = unique_audio
-
-    # Filter and sort formats to show unique resolutions and best audio
-    result = {
-        'title': str(info.get('title') or 'Unknown'),
+    result: dict[str, Any] = {
+        'title': str(info.get('title') or 'YouTube Media'),
         'thumbnail': str(info.get('thumbnail') or ''),
-        'channel': str(info.get('uploader') or 'Unknown'),
+        'channel': str(info.get('uploader') or info.get('channel') or 'YouTube Creator'),
         'duration': str(info.get('duration_string') or '0:00'),
         'views': int(info.get('view_count') or 0),
         'upload_date': str(info.get('upload_date') or ''),
-        'is_shorts': 'shorts' in url.lower() or (info.get('duration', 0) <= 60 if info else False),
+        'is_shorts': 'shorts' in url.lower() or duration_seconds <= 60,
         'formats': formats,
         'original_url': url
     }
     
     return jsonify(result)
 
-@app.route('/api/download', methods=['POST'])
-def download_audio():
-    if not request.is_json:
-        return jsonify({'error': 'Request must be JSON'}), 400
-    data = request.get_json(silent=True)
-    if not data:
-        return jsonify({'error': 'Invalid JSON data'}), 400
-        
-    url = data.get('url')
-    format_id = data.get('format_id')
-    
-    if not url or not format_id:
-        return jsonify({'error': 'URL and format_id are required'}), 400
+def process_media_download(url: str, format_id: str, media_type: str) -> tuple[str, str]:
+    """Downloads requested media and converts to MP3/MP4, returning (file_path, safe_filename)."""
+    ffmpeg_path = get_ffmpeg_path()
+    postprocessors: list[dict[str, Any]] = []
+    merge_output_format = None
 
-    # Check for ffmpeg (needed for MP3 conversion)
-    ffmpeg_path = shutil.which("ffmpeg")
-    
-    ydl_opts = {
+    if media_type == 'audio' or 'mp3' in format_id or 'audio' in format_id:
+        # High quality audio extraction
+        if ffmpeg_path:
+            selected_format = 'bestaudio/best/18'
+            postprocessors.append({
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '320',
+            })
+        else:
+            selected_format = 'bestaudio[ext=m4a]/bestaudio/18/best'
+    else:
+        # Video resolution matching
+        height = 1080
+        if '720' in format_id:
+            height = 720
+        elif '480' in format_id:
+            height = 480
+        elif '360' in format_id:
+            height = 360
+
+        if ffmpeg_path:
+            selected_format = (
+                f"bestvideo[height<={height}][ext=mp4]+bestaudio[ext=m4a]/"
+                f"bestvideo[height<={height}]+bestaudio/"
+                f"best[height<={height}][ext=mp4]/"
+                f"best[height<={height}]/"
+                f"18/best"
+            )
+            merge_output_format = 'mp4'
+        else:
+            selected_format = (
+                f"best[height<={height}][ext=mp4]/"
+                f"best[height<={height}]/"
+                f"18/best"
+            )
+
+    ydl_opts: dict[str, Any] = {
         'outtmpl': os.path.join(DOWNLOAD_FOLDER, '%(title)s.%(ext)s'),
         'noplaylist': True,
         'restrictfilenames': True,
-        'format': f'{format_id}/bestaudio/best',
-        'retries': 15,                 # Increased retries
+        'format': selected_format,
+        'retries': 15,
         'fragment_retries': 15,
-        'socket_timeout': 60,          # Increased for slower connections
-        'noprogress': True,
+        'socket_timeout': 45,
         'quiet': True,
-        'no_color': True,
-        'ignoreerrors': True,
+        'no_warnings': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web'],
+            }
+        },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
     }
-    
-    # If FFmpeg is available, convert to MP3 for maximum compatibility
+
     if ffmpeg_path:
-        ydl_opts['postprocessors'] = [{
-            'key': 'FFmpegExtractAudio',
-            'preferredcodec': 'mp3',
-            'preferredquality': '320',
-        }]
+        ydl_opts['ffmpeg_location'] = ffmpeg_path
+    if merge_output_format and ffmpeg_path:
+        ydl_opts['merge_output_format'] = merge_output_format
+    if postprocessors:
+        ydl_opts['postprocessors'] = postprocessors
+
+    with yt_dlp.YoutubeDL(cast(Any, ydl_opts)) as ydl:
+        info = ydl.extract_info(url, download=True)
+        if not info:
+            raise RuntimeError("Unable to download media stream. Please try again.")
+
+        raw_filename = str(ydl.prepare_filename(info))
+        saved_filename = raw_filename
+
+        # If audio conversion ran, extension becomes .mp3
+        if (media_type == 'audio' or 'mp3' in format_id) and ffmpeg_path:
+            base_path = str(os.path.splitext(raw_filename)[0])
+            mp3_path = base_path + ".mp3"
+            if os.path.exists(mp3_path):
+                saved_filename = mp3_path
+
+        # Fallback search if exact name shifted
+        if not os.path.exists(saved_filename):
+            base_path = str(os.path.splitext(raw_filename)[0])
+            for ext in ['.mp3', '.mp4', '.m4a', '.webm', '.opus']:
+                cand = base_path + ext
+                if os.path.exists(cand):
+                    saved_filename = cand
+                    break
+
+        if not os.path.exists(saved_filename):
+            raise FileNotFoundError("Processed media file could not be located on server.")
+
+        actual_filename = os.path.basename(saved_filename)
+        return saved_filename, actual_filename
+
+@app.route('/api/stream-download', methods=['GET'])
+def stream_download():
+    """Direct single-request stream download. Immune to serverless container isolation."""
+    url = request.args.get('url', '').strip()
+    format_id = request.args.get('format_id', 'best-audio-mp3').strip()
+    media_type = request.args.get('media_type', 'audio').strip().lower()
+
+    if not url:
+        return jsonify({'error': 'URL parameter is required'}), 400
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            # Perform the actual download
-            info = ydl.extract_info(url, download=True)
-            if info is None:
-                return jsonify({'error': 'Could not extract info for download'}), 400
+        file_path, filename = process_media_download(url, format_id, media_type)
+        mimetype = 'audio/mpeg' if filename.endswith('.mp3') else 'video/mp4'
+        if filename.endswith('.m4a'):
+            mimetype = 'audio/mp4'
 
-            saved_filename = str(ydl.prepare_filename(info))
-            
-            # After FFmpeg post-processing, the extension changes to .mp3
-            if ffmpeg_path:
-                base_path = str(os.path.splitext(saved_filename)[0])
-                mp3_path = base_path + ".mp3"
-                if os.path.exists(mp3_path):
-                    saved_filename = mp3_path
-            
-            # Fallback: if the expected file doesn't exist, search for it
-            if not os.path.exists(saved_filename):
-                base_path = str(os.path.splitext(saved_filename)[0])
-                for ext in ['.mp3', '.m4a', '.webm', '.ogg', '.opus', '.wav']:
-                    candidate = base_path + ext
-                    if os.path.exists(candidate):
-                        saved_filename = candidate
-                        break
-            
-            actual_filename = os.path.basename(saved_filename)
+        response: Response = send_file(file_path, as_attachment=True, download_name=filename, mimetype=mimetype)
 
-            return jsonify({
-                'success': True, 
-                'filename': actual_filename,
-            })
+        def remove_file() -> None:
+            try:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+            except Exception as e:
+                logger.error(f"Error cleaning file {file_path}: {e}")
+
+        response.call_on_close(remove_file)
+        return response
     except Exception as e:
-        error_msg = str(e)
-        logger.error(f"Download error: {e}")
-        return jsonify({'error': error_msg}), 500
+        logger.error(f"Stream download error: {e}")
+        return jsonify({'error': str(e)}), 500
 
-import time
-def cleanup_old_files():
-    """Deletes files in the downloads folder older than 10 minutes."""
+@app.route('/api/download', methods=['POST'])
+def download_media():
+    """Prepares download and provides direct streaming URL."""
+    if not request.is_json:
+        return jsonify({'error': 'Request must be JSON'}), 400
+    data = cast(dict[str, Any] | None, request.get_json(silent=True))
+    if not data:
+        return jsonify({'error': 'Invalid JSON data'}), 400
+        
+    url_raw = data.get('url')
+    format_id_raw = data.get('format_id')
+    media_type_raw = data.get('media_type')
+    url = str(url_raw).strip() if url_raw is not None else ''
+    format_id = str(format_id_raw).strip() if format_id_raw is not None else 'best-audio-mp3'
+    media_type = str(media_type_raw).strip().lower() if media_type_raw is not None else 'audio'
+    
+    if not url:
+        return jsonify({'error': 'URL is required'}), 400
+
     try:
-        if not os.path.exists(DOWNLOAD_FOLDER):
-            return
-            
-        now = time.time()
-        for filename in os.listdir(DOWNLOAD_FOLDER):
-            file_path = os.path.join(DOWNLOAD_FOLDER, filename)
-            # Security: Don't accidentally go out of directory
-            if os.path.isfile(file_path):
-                # If file is older than 10 minutes (600 seconds)
-                if os.stat(file_path).st_mtime < now - 600:
-                    try:
-                        os.remove(file_path)
-                    except Exception as e:
-                        logger.error(f"Error removing old file {file_path}: {e}")
+        file_path, filename = process_media_download(url, format_id, media_type)
+        return jsonify({
+            'success': True,
+            'filename': filename,
+            'download_url': f'/api/stream-download?url={url}&format_id={format_id}&media_type={media_type}'
+        })
     except Exception as e:
-        logger.error(f"Error during cleanup: {e}")
+        logger.error(f"Download API error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/download-file/<filename>')
-def serve_downloaded_file(filename):
-    # Run cleanup of old files
-    cleanup_old_files()
-    
-    # Security: sanitize filename
+def serve_downloaded_file(filename: str):
     safe_filename = os.path.basename(filename)
     file_path = os.path.join(DOWNLOAD_FOLDER, safe_filename)
     
@@ -244,7 +327,18 @@ def serve_downloaded_file(filename):
         return jsonify({'error': 'File expired or not found. Please try downloading again.'}), 404
         
     try:
-        return send_from_directory(DOWNLOAD_FOLDER, safe_filename, as_attachment=True)
+        mimetype = 'audio/mpeg' if safe_filename.endswith('.mp3') else 'video/mp4'
+        response: Response = send_file(file_path, as_attachment=True, download_name=safe_filename, mimetype=mimetype)
+
+        def remove_file() -> None:
+            try:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+            except Exception as e:
+                logger.error(f"Error deleting served file: {e}")
+
+        response.call_on_close(remove_file)
+        return response
     except Exception as e:
         logger.error(f"Error serving file: {e}")
         return jsonify({'error': 'Error serving file'}), 500
